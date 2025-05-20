@@ -4,31 +4,27 @@ import datetime
 from pymongo import MongoClient
 from dotenv import load_dotenv
 
-if os.getenv("RENDER") != "true":
-    load_dotenv()
+load_dotenv()  # Load .env if not in production
 
-def createapp():
-    app = Flask(__name__)
-    client = MongoClient(os.getenv("MONGODB_URI"))
-    app.db = client.snapnote
+app = Flask(__name__)
+client = MongoClient(os.getenv("MONGODB_URI"))
+db = client.snapnote
 
-    @app.route("/", methods=["GET", "POST"])
-    def home():
-        if request.method == "POST":
-            entry_content = request.form.get("content")
+@app.route("/", methods=["GET", "POST"])
+def home():
+    if request.method == "POST":
+        entry_content = request.form.get("content")
+        if entry_content:  # Basic validation
             formatted_date = datetime.datetime.today().strftime("%Y-%m-%d")
-            app.db.entries.insert_one({"content": entry_content, "date": formatted_date})
-            return redirect(url_for("home"))  
+            db.entries.insert_one({"content": entry_content, "date": formatted_date})
+        return redirect(url_for("home"))
 
-        entries_with_date = [
-            (
-                entry["content"], 
-                entry["date"],
-                datetime.datetime.strptime(entry["date"], "%Y-%m-%d").strftime("%b %d")
-            )
-            for entry in app.db.entries.find({})
-        ]
+    entries = [
+        (e["content"], e["date"], datetime.datetime.strptime(e["date"], "%Y-%m-%d").strftime("%b %d"))
+        for e in db.entries.find({})
+    ]
+    return render_template("home.html", entries=entries)
 
-        return render_template("home.html", entries=entries_with_date)
-
-    return app
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
